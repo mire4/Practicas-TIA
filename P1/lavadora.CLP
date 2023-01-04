@@ -1,0 +1,249 @@
+;Practica 1. Mireia Pires State
+
+; _________________________________________
+;|                         	   			   |
+;|   Clase lavado con una instancia para   |
+;|        almacenar inputs + outputs       |
+;|_________________________________________|
+
+(deftemplate lavado
+	(slot peso-crisp (type FLOAT))
+	(slot suciedad-crisp (type FLOAT))
+	(slot mom-tiempo-lavado-crisp (type FLOAT))
+	(slot max-tiempo-lavado-crisp (type FLOAT))
+	(slot mom-cantidad-crisp (type FLOAT))
+	(slot max-cantidad-crisp (type FLOAT))
+)
+
+; _______________________________________
+;|                          			 |
+;|           Variables difusas			 |
+;|_______________________________________|
+
+(deftemplate peso
+	1 10 kg 						;Rango
+	((bajo (3 1)(4 0))				;Valores difusos
+	(medio (3 0)(4 1)(7 1)(9 0))
+	(alto (8 0)(9 1))))
+
+
+(deftemplate suciedad
+	50 500 NTU
+	((limpio (150 1)(200 0))
+	(normal (150 0)(200 1)(300 1)(450 0))
+	(sucio (350 0)(450 1))))
+
+
+(deftemplate tiempo-lavado
+	20 120 min
+	((corto (30 1)(40 0))
+	(medio (30 0)(50 1)(70 1)(80 0))
+	(largo (70 0)(80 1)(90 1)(100 0))
+	(extralargo (90 0)(100 1))))
+
+
+(deftemplate cantidad
+	20 100 kg
+	((minima (30 1)(40 0))
+	(estandar (30 0)(50 1)(70 1)(80 0))
+	(maxima (60 0)(80 1))))
+
+; _______________________________________
+;|                          			 |
+;|             Set de reglas			 |
+;|_______________________________________|
+
+;Tiempo de lavado para peso bajo
+;-------------------------------
+
+(defrule tiempo-bajo-limpio
+	(peso bajo)
+	(suciedad limpio)
+	=>
+	(assert (tiempo-lavado extremely corto)))
+
+(defrule tiempo-bajo-normal
+	(peso bajo)
+	(suciedad normal)
+	=>
+	(assert (tiempo-lavado corto)))
+
+(defrule tiempo-bajo-sucio
+	(peso bajo)
+	(suciedad sucio)
+	=>
+	(assert (tiempo-lavado largo)))
+
+;Tiempo de lavado para peso medio
+;--------------------------------
+
+(defrule tiempo-medio-limpio
+	(peso medio)
+	(suciedad limpio)
+	=>
+	(assert (tiempo-lavado very corto)))
+
+(defrule tiempo-medio-normal
+	(peso medio)
+	(suciedad normal)
+	=>
+	(assert (tiempo-lavado medio)))
+
+(defrule tiempo-medio-sucio
+	(peso medio)
+	(suciedad sucio)
+	=>
+	(assert (tiempo-lavado very largo)))
+
+;Tiempo de lavado para peso alto
+;-------------------------------
+
+(defrule tiempo-alto-limpio
+	(peso alto)
+	(suciedad limpio)
+	=>
+	(assert (tiempo-lavado corto)))
+
+(defrule tiempo-alto-normal
+	(peso alto)
+	(suciedad normal)
+	=>
+	(assert (tiempo-lavado somewhat largo)))
+
+(defrule tiempo-alto-sucio
+	(peso alto)
+	(suciedad sucio)
+	=>
+	(assert (tiempo-lavado extralargo)))
+
+;Cantidad de detergente para peso bajo
+;-------------------------------------
+
+(defrule cantidad-bajo-limpio
+	(peso bajo)
+	(suciedad limpio)
+	=>
+	(assert (cantidad minima)))
+
+(defrule cantidad-bajo-normal
+	(peso bajo)
+	(suciedad normal)
+	=>
+	(assert (cantidad somewhat estandar)))
+
+(defrule cantidad-bajo-sucio
+	(peso bajo)
+	(suciedad sucio)
+	=>
+	(assert (cantidad estandar)))
+
+;Cantidad de detergente para peso medio
+;--------------------------------------
+
+(defrule cantidad-medio-limpio
+	(peso medio)
+	(suciedad limpio)
+	=>
+	(assert (cantidad minima)))
+
+(defrule cantidad-medio-normal
+	(peso medio)
+	(suciedad normal)
+	=>
+	(assert (cantidad very estandar)))
+
+(defrule cantidad-medio-sucio
+	(peso medio)
+	(suciedad sucio)
+	=>
+	(assert (cantidad maxima)))
+
+;Cantidad de detergente para peso alto
+;--------------------------------------
+
+(defrule cantidad-alto-limpio
+	(peso alto)
+	(suciedad limpio)
+	=>
+	(assert (cantidad more-or-less estandar)))
+
+(defrule cantidad-alto-normal
+	(peso alto)
+	(suciedad normal)
+	=>
+	(assert (cantidad estandar)))
+
+(defrule cantidad-alto-sucio
+	(peso alto)
+	(suciedad sucio)
+	=>
+	(assert (cantidad very maxima)))
+
+; ___________________________________________
+;|                         	   			     |
+;| Funcion para pasar valores crips a difuso |
+;|___________________________________________|
+
+(deffunction fuzzify 
+	(?fztemplate ?value ?delta)
+	(bind ?low (get-u-from ?fztemplate))
+	(bind ?hi (get-u-to ?fztemplate))
+        (if (<= ?value ?low)
+        	then
+            	(assert-string (format nil "(%s (%g 1.0) (%g 0.0))" ?fztemplate ?low ?delta))
+        	else
+            	(if (>= ?value ?hi)
+        			then
+                		(assert-string (format nil "(%s (%g 0.0) (%g 1.0))" ?fztemplate (- ?hi ?delta) ?hi))
+            		else
+                		(assert-string (format nil "(%s (%g 0.0) (%g 1.0) (%g 0.0))" ?fztemplate (max ?low (- ?value ?delta))
+                               ?value (min ?hi (+ ?value ?delta))))
+            	)
+        )
+)
+
+(defrule fuzzify-input
+	(inputPeso ?pesoC)
+	(inputSuciedad ?suciedadC)
+	=>
+	(fuzzify peso ?pesoC 0)
+	(fuzzify suciedad ?suciedadC 0)
+)
+
+; _______________________________________
+;|                          			 |
+;|            Defusificacion			 |
+;|_______________________________________|
+
+(defrule defuzzy
+	(tiempo-lavado ?tlav)
+	(cantidad ?cant)
+	=>
+	(assert (mom-tiempo-lavado-crisp (moment-defuzzify ?tlav)))
+	(assert (max-tiempo-lavado-crisp (maximum-defuzzify ?tlav)))
+	(assert (mom-cantidad-crisp (moment-defuzzify ?cant)))
+	(assert (max-cantidad-crisp (maximum-defuzzify ?cant)))
+	
+	(printout t"Tiempo(mom): " (moment-defuzzify ?tlav) crlf)
+	(printout t"Tiempo(max): " (maximum-defuzzify ?tlav) crlf)
+	
+	(printout t"Cantidad(mom): " (moment-defuzzify ?cant) crlf)
+	(printout t"Cantidad(max): " (maximum-defuzzify ?cant) crlf)
+)
+
+; _______________________________________
+;|                          			 |
+;|          Inicio del programa			 |
+;|_______________________________________|
+
+(defrule inicio
+	(initial-fact)
+	=>
+	(printout t "Introduzca el peso de la ropa a lavar en kg: " crlf)
+	(bind ?inputPeso (read))
+	(assert (inputPeso ?inputPeso))
+
+	(printout t "Introduzca el grado de suciedad de la ropa en NTU: " crlf)
+	(bind ?inputSuciedad (read))
+	(assert (inputSuciedad ?inputSuciedad))
+)
